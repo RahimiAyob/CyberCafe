@@ -1,26 +1,35 @@
-<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <!DOCTYPE html>
 <html>
 <head>
     <title>Select Portal Option</title>
+    <link rel="stylesheet" href="assets/css/theme.css">
 </head>
-<body>
-    <div style="text-align: center; margin-top: 50px;">
-        <!-- pull the seat ID we just saved in the servlet -->
-        <h2>💻 Connected to Desk #<%= session.getAttribute("CURRENT_SEAT_ID") %></h2>
-        <p>Choose your login method to unlock this PC:</p>
+<body class="theme-body">
+    <main class="theme-page theme-page--centered">
+        <section class="theme-card theme-card--compact theme-center theme-stack">
+            <!-- pull the seat ID we just saved in the servlet -->
+            <span class="theme-badge theme-badge--teal">Desk #<%= session.getAttribute("CURRENT_SEAT_ID") %></span>
+            <div>
+                <h1 class="theme-title">Choose your <strong>Portal</strong></h1>
+                <p class="theme-subtitle">Pick how you want to unlock this PC.</p>
+            </div>
 
-        <hr style="width: 200px; margin: 20px auto;">
+            <hr class="theme-divider">
 
-        <!-- buttons to split into member or guest flows -->
-        <div style="margin-top: 20px;">
-            <a href="login.jsp" style="padding: 10px 20px; background: #007bff; color: white; text-decoration: none; margin-right: 10px; border-radius: 5px;">
-                Log In as Member
-            </a>
-            <a href="guest_billing.jsp" style="padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px;">
-                Continue as Guest
-            </a>
-        </div>
-    </div>
+            <!-- buttons to split into member or guest flows -->
+            <div class="theme-actions theme-actions--center theme-center">
+                <a href="login.jsp" class="theme-link-btn theme-link-btn--primary">Log In as Member</a>
+                <a href="guest_billing.jsp" class="theme-link-btn theme-link-btn--warning">Continue as Guest</a>
+            </div>
+
+            <hr class="theme-divider">
+
+            <!-- Admin portal link -->
+            <div class="theme-center">
+                <a href="admin_login.jsp" class="theme-link-btn theme-link-btn--secondary" style="opacity: 0.7; font-size: 0.9rem;">Admin Access</a>
+            </div>
+        </section>
+    </main>
 </body>
 </html>

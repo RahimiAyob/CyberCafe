@@ -2,18 +2,30 @@
 <html>
 <head>
     <title>Scan Desk QR Code</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <style>
-        #reader { width: 100%; max-width: 500px; margin: auto; }
-    </style>
+    <script src="assets/js/html5-qrcode.min.js"></script>
+    <link rel="stylesheet" href="assets/css/theme.css">
 </head>
-<body>
-    <h2 style="text-align: center;">Scan the QR Code on Your Desk</h2>
+<body class="theme-body">
+    <main class="theme-page theme-page--centered">
+        <section class="theme-card theme-card--wide theme-scanner theme-center">
+            <div>
+                <span class="theme-badge theme-badge--teal">Entry Scanner</span>
+                <h1 class="theme-title">Scan the QR Code on Your <strong>Desk</strong></h1>
+                <p class="theme-subtitle">Point your camera at the desk QR code to continue into the correct session flow.</p>
+            </div>
 
-    <div id="reader"></div>
+            <div id="reader"></div>
+            <p class="theme-note">Camera permissions may take a moment to appear in your browser.</p>
+
+            <hr class="theme-divider theme-mt-18">
+            <p class="theme-center" style="margin: 0;">
+                <a href="admin_login.jsp" class="theme-link-btn theme-link-btn--secondary" style="opacity: 0.7; font-size: 0.9rem;">Admin Access</a>
+            </p>
+        </section>
+    </main>
 
     <script>
-      function onScanSuccess(decodedText, decodedResult) {
+      function onScanSuccess(decodedText) {
         // decodedText contains the URL from the QR code
         // e.g., "http://localhost:8080/Cybercafe/QrHandler?seat=5"
 

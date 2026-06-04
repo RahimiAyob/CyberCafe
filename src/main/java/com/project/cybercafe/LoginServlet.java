@@ -1,4 +1,4 @@
-package controller;
+package com.project.cybercafe;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -11,8 +11,6 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
-import util.DatabaseConnection;
-package com.project.cybercafe;
 
 @WebServlet("/LoginServlet")
 public class LoginServlet extends HttpServlet {
@@ -23,10 +21,10 @@ public class LoginServlet extends HttpServlet {
 
         String usernameParam = request.getParameter("username");
         String passwordParam = request.getParameter("password");
+        String loginSource = request.getParameter("login_source"); // Catch the hidden form identifier
         HttpSession session = request.getSession();
 
         try (Connection conn = DatabaseConnection.getConnection()) {
-            // check if user exists and password matches
             String sql = "SELECT * FROM USERS WHERE USERNAME = ? AND PASSWORD = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, usernameParam);
@@ -34,24 +32,112 @@ public class LoginServlet extends HttpServlet {
 
                 try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
-                        // user found! log them into the web session
-                        session.setAttribute("LOGGED_IN_USER", rs.getString("USERNAME"));
-                        session.setAttribute("USER_ID", rs.getInt("USER_ID"));
-                        session.setAttribute("MINUTES_LEFT", rs.getInt("BANKED_MINUTES"));
+                        int userId = rs.getInt("USER_ID");
+                        String username = rs.getString("USERNAME");
+                        int bankedMins = rs.getInt("BANKED_MINUTES");
 
-                        // redirect straight to your active console session dashboard
-                        response.sendRedirect("dashboard.jsp");
+                        // Check if user is an admin
+                        boolean isAdmin = false;
+                        try {
+                            isAdmin = rs.getBoolean("IS_ADMIN");
+                        } catch (SQLException e) {
+                            // IS_ADMIN column doesn't exist yet, default to false
+                            isAdmin = false;
+                        }
+
+                        // If user is admin, redirect directly to admin dashboard
+                        if (isAdmin) {
+                            session.setAttribute("LOGGED_IN_USER", username);
+                            session.setAttribute("USER_ID", userId);
+                            session.setAttribute("IS_ADMIN", true);
+                            response.sendRedirect("AdminDashboard");
+                            return;
+                        }
+
+                        // grab the seat ID that was stored during the QR scan phase
+                        Integer seatId = (Integer) session.getAttribute("CURRENT_SEAT_ID");
+                        if (seatId == null) {
+                            response.sendRedirect("scan_qr.jsp?error=no_seat_selected");
+                            return;
+                        }
+
+                        // CRITICAL GATEWAY CHECK: Verify if the target seat is already occupied
+                        String checkSeatSql = "SELECT STATUS FROM SEATS WHERE SEAT_ID = ?";
+                        try (PreparedStatement checkSeatStmt = conn.prepareStatement(checkSeatSql)) {
+                            checkSeatStmt.setInt(1, seatId);
+                            try (ResultSet rsSeat = checkSeatStmt.executeQuery()) {
+                                if (rsSeat.next()) {
+                                    String currentStatus = rsSeat.getString("STATUS");
+                                    if ("OCCUPIED".equalsIgnoreCase(currentStatus)) {
+                                        response.sendRedirect("login.jsp?error=seat_already_occupied");
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+
+                        // 1. clear any leaking dead sessions for this user first
+                        String clearOldSessions = "UPDATE SESSIONS SET IS_ACTIVE = FALSE WHERE USER_ID = ? AND IS_ACTIVE = TRUE";
+                        try (PreparedStatement clearStmt = conn.prepareStatement(clearOldSessions)) {
+                            clearStmt.setInt(1, userId);
+                            clearStmt.executeUpdate();
+                        }
+
+                        // 2. set the physical seat status to OCCUPIED for the admin panel layout
+                        String occupySeat = "UPDATE SEATS SET STATUS = 'OCCUPIED' WHERE SEAT_ID = ?";
+                        try (PreparedStatement seatStmt = conn.prepareStatement(occupySeat)) {
+                            seatStmt.setInt(1, seatId);
+                            seatStmt.executeUpdate();
+                        }
+
+                        // 3. calculate session end time based on banked minutes
+                        long loginTime = System.currentTimeMillis();
+                        long totalDurationMs = (long) bankedMins * 60 * 1000;
+                        long expiryTime = loginTime + totalDurationMs;
+
+                        // Convert to SQL format string for END_TIME
+                        java.sql.Timestamp endTimeStamp = new java.sql.Timestamp(expiryTime);
+
+                        // 4. insert the active session tracking entry with USER_ID and END_TIME
+                        String insertSession = "INSERT INTO SESSIONS (SEAT_ID, USER_ID, GUEST_TAG, START_TIME, END_TIME, IS_ACTIVE) VALUES (?, ?, NULL, NOW(), ?, TRUE)";
+                        try (PreparedStatement sessStmt = conn.prepareStatement(insertSession)) {
+                            sessStmt.setInt(1, seatId);
+                            sessStmt.setInt(2, userId);
+                            sessStmt.setTimestamp(3, endTimeStamp);
+                            sessStmt.executeUpdate();
+                        }
+
+                        // 5. lock down matching session attributes for dashboard consumption
+                        session.setAttribute("LOGGED_IN_USER", username);
+                        session.setAttribute("USER_ID", userId);
+                        session.setAttribute("SESSION_END_TIME", expiryTime);
+                        session.setAttribute("IS_GUEST", false);
+
+                        // DYNAMIC BALANCE GATEWAY REDIRECT
+                        if (bankedMins > 0) {
+                            response.sendRedirect("dashboard.jsp");
+                        } else {
+                            response.sendRedirect("member_billing.jsp");
+                        }
                         return;
                     } else {
-                        // bad credentials
-                        response.sendRedirect("login.jsp?error=invalid_credentials");
+                        // Routing gateway for failed attempts
+                        if ("admin".equals(loginSource)) {
+                            response.sendRedirect("admin_login.jsp?error=invalid_credentials");
+                        } else {
+                            response.sendRedirect("login.jsp?error=invalid_credentials");
+                        }
                         return;
                     }
                 }
             }
         } catch (SQLException e) {
             e.printStackTrace();
-            response.sendRedirect("login.jsp?error=db_error");
+            if ("admin".equals(loginSource)) {
+                response.sendRedirect("admin_login.jsp?error=db_error");
+            } else {
+                response.sendRedirect("login.jsp?error=db_error");
+            }
         }
     }
 }
