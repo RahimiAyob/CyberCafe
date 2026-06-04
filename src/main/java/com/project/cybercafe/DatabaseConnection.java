@@ -9,7 +9,7 @@ public class DatabaseConnection {
     // connection details pointing to your local mariadb server
     private static final String URL = "jdbc:mariadb://localhost:3306/cybercafe_db";
     private static final String USER = "root";
-    private static final String PASSWORD = "zzzz"; // change this to the password you set in the wizard
+    private static final String PASSWORD = "zzzz";
 
     public static Connection getConnection() throws SQLException {
         try {
