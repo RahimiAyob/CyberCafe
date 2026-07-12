@@ -26,9 +26,14 @@ public class AdminDashboardServlet extends HttpServlet {
         List<Map<String, Object>> transactionList = new ArrayList<>();
 
         // Query to grab all seats and link them to active sessions if they exist
-        String sql = "SELECT s.SEAT_ID, s.STATUS, sess.USER_ID, sess.GUEST_TAG, sess.START_TIME " +
+        String sql = "SELECT s.SEAT_ID, s.SEAT_STATUS, sess.SESSION_USER_ID, sess.SESSION_GUEST_TAG, sess.SESSION_START_TIME " +
                 "FROM SEATS s " +
-                "LEFT JOIN SESSIONS sess ON s.SEAT_ID = sess.SEAT_ID AND sess.IS_ACTIVE = TRUE " +
+                "LEFT JOIN SESSIONS sess ON sess.SESSION_ID = (" +
+                "    SELECT MAX(s2.SESSION_ID) FROM SESSIONS s2 " +
+                "    WHERE s2.SESSION_SEAT_ID = s.SEAT_ID " +
+                "      AND s2.SESSION_ACTIVE = TRUE " +
+                "      AND (s2.SESSION_END_TIME IS NULL OR s2.SESSION_END_TIME > NOW())" +
+                ") " +
                 "ORDER BY s.SEAT_ID ASC";
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -38,15 +43,15 @@ public class AdminDashboardServlet extends HttpServlet {
             while (rs.next()) {
                 Map<String, Object> seatData = new HashMap<>();
                 seatData.put("seatId", rs.getInt("SEAT_ID"));
-                seatData.put("status", rs.getString("STATUS"));
+                seatData.put("status", rs.getString("SEAT_STATUS"));
 
                 // Determine user identifier from USER_ID or GUEST_TAG
-                Integer userId = (Integer) rs.getObject("USER_ID");
-                String guestTag = rs.getString("GUEST_TAG");
+                Integer userId = (Integer) rs.getObject("SESSION_USER_ID");
+                String guestTag = rs.getString("SESSION_GUEST_TAG");
                 String userIdentifier = (userId != null) ? "User_" + userId : guestTag;
 
                 seatData.put("user", userIdentifier);
-                seatData.put("startTime", rs.getTimestamp("START_TIME"));
+                seatData.put("startTime", rs.getTimestamp("SESSION_START_TIME"));
                 seatList.add(seatData);
             }
 
@@ -55,9 +60,9 @@ public class AdminDashboardServlet extends HttpServlet {
         }
 
         // Fixed table name to TRANSACTIONS and swapped to LEFT JOIN for guest rows
-        String transactionSql = "SELECT t.TRANSACTION_ID, u.USERNAME, t.AMOUNT, t.SESSION_ID " +
+        String transactionSql = "SELECT t.TRANSACTION_ID, u.USER_NAME, t.TRANSACTION_AMOUNT, t.TRANSACTION_SESSION_ID " +
                 "FROM TRANSACTIONS t " +
-                "LEFT JOIN USERS u ON t.USER_ID = u.USER_ID " +
+                "LEFT JOIN USERS u ON t.TRANSACTION_USER_ID = u.USER_ID " +
                 "ORDER BY t.TRANSACTION_ID DESC " +
                 "LIMIT 20";
 
@@ -70,11 +75,11 @@ public class AdminDashboardServlet extends HttpServlet {
                 transData.put("transactionId", rs.getInt("TRANSACTION_ID"));
 
                 // fallback to "Guest" if username comes back null from the left join
-                String name = rs.getString("USERNAME");
+                String name = rs.getString("USER_NAME");
                 transData.put("username", (name != null) ? name : "Guest");
 
-                transData.put("amount", rs.getDouble("AMOUNT"));
-                transData.put("sessionId", rs.getObject("SESSION_ID"));
+                transData.put("amount", rs.getDouble("TRANSACTION_AMOUNT"));
+                transData.put("sessionId", rs.getObject("TRANSACTION_SESSION_ID"));
                 transactionList.add(transData);
             }
 

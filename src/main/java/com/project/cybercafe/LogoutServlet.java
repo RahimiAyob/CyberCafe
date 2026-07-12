@@ -38,7 +38,7 @@ public class LogoutServlet extends HttpServlet {
                         minutesToSave = (int) (millisLeft / (1000 * 60));
                     }
 
-                    String updateTimeSql = "UPDATE USERS SET BANKED_MINUTES = ? WHERE USER_ID = ?";
+                    String updateTimeSql = "UPDATE USERS SET USER_MINUTES = ? WHERE USER_ID = ?";
                     try (PreparedStatement timeStmt = conn.prepareStatement(updateTimeSql)) {
                         timeStmt.setInt(1, minutesToSave);
                         timeStmt.setInt(2, userId);
@@ -50,7 +50,7 @@ public class LogoutServlet extends HttpServlet {
                 if (seatId != null) {
                     if (userId != null) {
                         // For registered members, use USER_ID
-                        String updateSessionSql = "UPDATE SESSIONS SET IS_ACTIVE = FALSE, END_TIME = NOW() WHERE SEAT_ID = ? AND USER_ID = ? AND IS_ACTIVE = TRUE";
+                        String updateSessionSql = "UPDATE SESSIONS SET SESSION_ACTIVE = FALSE, SESSION_END_TIME = NOW() WHERE SESSION_SEAT_ID = ? AND SESSION_USER_ID = ? AND SESSION_ACTIVE = TRUE";
                         try (PreparedStatement stmt1 = conn.prepareStatement(updateSessionSql)) {
                             stmt1.setInt(1, seatId);
                             stmt1.setInt(2, userId);
@@ -58,7 +58,7 @@ public class LogoutServlet extends HttpServlet {
                         }
                     } else {
                         // For guests, just deactivate by seat (guest sessions are tied to seat)
-                        String updateSessionSql = "UPDATE SESSIONS SET IS_ACTIVE = FALSE, END_TIME = NOW() WHERE SEAT_ID = ? AND IS_ACTIVE = TRUE";
+                        String updateSessionSql = "UPDATE SESSIONS SET SESSION_ACTIVE = FALSE, SESSION_END_TIME = NOW() WHERE SESSION_SEAT_ID = ? AND SESSION_ACTIVE = TRUE";
                         try (PreparedStatement stmt1 = conn.prepareStatement(updateSessionSql)) {
                             stmt1.setInt(1, seatId);
                             stmt1.executeUpdate();
@@ -68,7 +68,7 @@ public class LogoutServlet extends HttpServlet {
 
                 // 3. ALWAYS free up the physical PC seat (crucial for both members AND guests)
                 if (seatId != null) {
-                    String updateSeatSql = "UPDATE SEATS SET STATUS = 'AVAILABLE' WHERE SEAT_ID = ?";
+                    String updateSeatSql = "UPDATE SEATS SET SEAT_STATUS = 'AVAILABLE' WHERE SEAT_ID = ?";
                     try (PreparedStatement stmt2 = conn.prepareStatement(updateSeatSql)) {
                         stmt2.setInt(1, seatId);
                         stmt2.executeUpdate();

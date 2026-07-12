@@ -74,8 +74,8 @@
         document.getElementById("countdown").innerHTML = displayHrs + ":" + displayMins + ":" + displaySecs;
       }
 
-      updateTimer();
-      let timerInterval = setInterval(updateTimer, 1000);
-    </script>
-</body>
-</html>
+       updateTimer();
+       let timerInterval = setInterval(updateTimer, 1000);
+     </script>
+ </body>
+ </html>

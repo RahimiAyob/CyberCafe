@@ -15,7 +15,6 @@ import jakarta.servlet.http.HttpSession;
 @WebServlet("/TopUpServlet")
 public class TopUpServlet extends HttpServlet {
 
-    // handle our card clicks via GET requests
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -32,7 +31,7 @@ public class TopUpServlet extends HttpServlet {
 
             try (Connection conn = DatabaseConnection.getConnection()) {
                 // 1. update the database balance
-                String topUpSql = "UPDATE USERS SET BANKED_MINUTES = BANKED_MINUTES + ? WHERE USERNAME = ?";
+                String topUpSql = "UPDATE USERS SET USER_MINUTES = USER_MINUTES + ? WHERE USER_NAME = ?";
                 try (PreparedStatement topUpStmt = conn.prepareStatement(topUpSql)) {
                     topUpStmt.setInt(1, minutesToAdd);
                     topUpStmt.setString(2, username);
@@ -41,8 +40,8 @@ public class TopUpServlet extends HttpServlet {
 
                 // 2. log the transaction to TRANSACTIONS table (dynamically fetching active session)
                 if (userId != null) {
-                    String transactionSql = "INSERT INTO TRANSACTIONS (USER_ID, SESSION_ID, AMOUNT) " +
-                            "VALUES (?, (SELECT SESSION_ID FROM SESSIONS WHERE USER_ID = ? AND IS_ACTIVE = TRUE LIMIT 1), ?)";
+                    String transactionSql = "INSERT INTO TRANSACTIONS (TRANSACTION_USER_ID, TRANSACTION_SESSION_ID, TRANSACTION_AMOUNT) " +
+                            "VALUES (?, (SELECT SESSION_ID FROM SESSIONS WHERE SESSION_USER_ID = ? AND SESSION_ACTIVE = TRUE LIMIT 1), ?)";
                     try (PreparedStatement tranStmt = conn.prepareStatement(transactionSql)) {
                         tranStmt.setInt(1, userId);
                         tranStmt.setInt(2, userId);
@@ -60,7 +59,7 @@ public class TopUpServlet extends HttpServlet {
                     session.setAttribute("SESSION_END_TIME", updatedEndTime);
 
                     if (userId != null) {
-                        String updateSessionSql = "UPDATE SESSIONS SET END_TIME = ? WHERE USER_ID = ? AND IS_ACTIVE = TRUE";
+                        String updateSessionSql = "UPDATE SESSIONS SET SESSION_END_TIME = ? WHERE SESSION_USER_ID = ? AND SESSION_ACTIVE = TRUE";
                         try (PreparedStatement updateStmt = conn.prepareStatement(updateSessionSql)) {
                             updateStmt.setTimestamp(1, new java.sql.Timestamp(updatedEndTime));
                             updateStmt.setInt(2, userId);
@@ -68,12 +67,12 @@ public class TopUpServlet extends HttpServlet {
                         }
                     }
                 } else {
-                    String bankingSql = "SELECT BANKED_MINUTES FROM USERS WHERE USERNAME = ?";
+                    String bankingSql = "SELECT USER_MINUTES FROM USERS WHERE USER_NAME = ?";
                     try (PreparedStatement bankStmt = conn.prepareStatement(bankingSql)) {
                         bankStmt.setString(1, username);
                         try (ResultSet rs = bankStmt.executeQuery()) {
                             if (rs.next()) {
-                                int totalBankedMins = rs.getInt("BANKED_MINUTES");
+                                int totalBankedMins = rs.getInt("USER_MINUTES");
                                 long loginTime = System.currentTimeMillis();
                                 long totalDurationMs = (long) totalBankedMins * 60 * 1000;
                                 long newExpiryTime = loginTime + totalDurationMs;
@@ -108,14 +107,14 @@ public class TopUpServlet extends HttpServlet {
             double amount = calculatePrice(minutesToAdd);
 
             try (Connection conn = DatabaseConnection.getConnection()) {
-                String topUpSql = "UPDATE USERS SET BANKED_MINUTES = BANKED_MINUTES + ? WHERE USERNAME = ?";
+                String topUpSql = "UPDATE USERS SET USER_MINUTES = USER_MINUTES + ? WHERE USER_NAME = ?";
                 try (PreparedStatement topUpStmt = conn.prepareStatement(topUpSql)) {
                     topUpStmt.setInt(1, minutesToAdd);
                     topUpStmt.setString(2, usernameParam.trim());
                     topUpStmt.executeUpdate();
                 }
 
-                String userIdSql = "SELECT USER_ID FROM USERS WHERE USERNAME = ?";
+                String userIdSql = "SELECT USER_ID FROM USERS WHERE USER_NAME = ?";
                 try (PreparedStatement userStmt = conn.prepareStatement(userIdSql)) {
                     userStmt.setString(1, usernameParam.trim());
                     try (ResultSet rs = userStmt.executeQuery()) {
@@ -123,8 +122,8 @@ public class TopUpServlet extends HttpServlet {
                             int userId = rs.getInt("USER_ID");
 
                             // dynamically tracking the active session for standalone kiosk terminal forms
-                            String transactionSql = "INSERT INTO TRANSACTIONS (USER_ID, SESSION_ID, AMOUNT) " +
-                                    "VALUES (?, (SELECT SESSION_ID FROM SESSIONS WHERE USER_ID = ? AND IS_ACTIVE = TRUE LIMIT 1), ?)";
+                            String transactionSql = "INSERT INTO TRANSACTIONS (TRANSACTION_USER_ID, TRANSACTION_SESSION_ID, TRANSACTION_AMOUNT) " +
+                                    "VALUES (?, (SELECT SESSION_ID FROM SESSIONS WHERE SESSION_USER_ID = ? AND SESSION_ACTIVE = TRUE LIMIT 1), ?)";
                             try (PreparedStatement tranStmt = conn.prepareStatement(transactionSql)) {
                                 tranStmt.setInt(1, userId);
                                 tranStmt.setInt(2, userId);

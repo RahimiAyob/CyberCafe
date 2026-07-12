@@ -22,8 +22,6 @@ public class QrHandlerServlet extends HttpServlet {
                 HttpSession session = request.getSession();
                 session.setAttribute("CURRENT_SEAT_ID", seatId);
 
-                // 2. bypass the selection page and go straight to the login screen
-                // if they are a guest, you can have a "play as guest" button right on the login page anyway
                 response.sendRedirect("login.jsp");
                 return;
 

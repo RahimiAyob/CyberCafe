@@ -25,7 +25,7 @@ public class LoginServlet extends HttpServlet {
         HttpSession session = request.getSession();
 
         try (Connection conn = DatabaseConnection.getConnection()) {
-            String sql = "SELECT * FROM USERS WHERE USERNAME = ? AND PASSWORD = ?";
+            String sql = "SELECT * FROM USERS WHERE USER_NAME = ? AND USER_PASSWORD = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, usernameParam);
                 stmt.setString(2, passwordParam);
@@ -33,15 +33,14 @@ public class LoginServlet extends HttpServlet {
                 try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
                         int userId = rs.getInt("USER_ID");
-                        String username = rs.getString("USERNAME");
-                        int bankedMins = rs.getInt("BANKED_MINUTES");
+                        String username = rs.getString("USER_NAME");
+                        int bankedMins = rs.getInt("USER_MINUTES");
 
                         // Check if user is an admin
                         boolean isAdmin = false;
                         try {
-                            isAdmin = rs.getBoolean("IS_ADMIN");
+                            isAdmin = rs.getBoolean("USER_ADMIN");
                         } catch (SQLException e) {
-                            // IS_ADMIN column doesn't exist yet, default to false
                             isAdmin = false;
                         }
 
@@ -61,13 +60,13 @@ public class LoginServlet extends HttpServlet {
                             return;
                         }
 
-                        // CRITICAL GATEWAY CHECK: Verify if the target seat is already occupied
-                        String checkSeatSql = "SELECT STATUS FROM SEATS WHERE SEAT_ID = ?";
+                        // Verify if the target seat is already occupied
+                        String checkSeatSql = "SELECT SEAT_STATUS FROM SEATS WHERE SEAT_ID = ?";
                         try (PreparedStatement checkSeatStmt = conn.prepareStatement(checkSeatSql)) {
                             checkSeatStmt.setInt(1, seatId);
                             try (ResultSet rsSeat = checkSeatStmt.executeQuery()) {
                                 if (rsSeat.next()) {
-                                    String currentStatus = rsSeat.getString("STATUS");
+                                    String currentStatus = rsSeat.getString("SEAT_STATUS");
                                     if ("OCCUPIED".equalsIgnoreCase(currentStatus)) {
                                         response.sendRedirect("login.jsp?error=seat_already_occupied");
                                         return;
@@ -77,14 +76,14 @@ public class LoginServlet extends HttpServlet {
                         }
 
                         // 1. clear any leaking dead sessions for this user first
-                        String clearOldSessions = "UPDATE SESSIONS SET IS_ACTIVE = FALSE WHERE USER_ID = ? AND IS_ACTIVE = TRUE";
+                        String clearOldSessions = "UPDATE SESSIONS SET SESSION_ACTIVE = FALSE WHERE SESSION_USER_ID = ? AND SESSION_ACTIVE = TRUE";
                         try (PreparedStatement clearStmt = conn.prepareStatement(clearOldSessions)) {
                             clearStmt.setInt(1, userId);
                             clearStmt.executeUpdate();
                         }
 
                         // 2. set the physical seat status to OCCUPIED for the admin panel layout
-                        String occupySeat = "UPDATE SEATS SET STATUS = 'OCCUPIED' WHERE SEAT_ID = ?";
+                        String occupySeat = "UPDATE SEATS SET SEAT_STATUS = 'OCCUPIED' WHERE SEAT_ID = ?";
                         try (PreparedStatement seatStmt = conn.prepareStatement(occupySeat)) {
                             seatStmt.setInt(1, seatId);
                             seatStmt.executeUpdate();
@@ -99,7 +98,7 @@ public class LoginServlet extends HttpServlet {
                         java.sql.Timestamp endTimeStamp = new java.sql.Timestamp(expiryTime);
 
                         // 4. insert the active session tracking entry with USER_ID and END_TIME
-                        String insertSession = "INSERT INTO SESSIONS (SEAT_ID, USER_ID, GUEST_TAG, START_TIME, END_TIME, IS_ACTIVE) VALUES (?, ?, NULL, NOW(), ?, TRUE)";
+                        String insertSession = "INSERT INTO SESSIONS (SESSION_SEAT_ID, SESSION_USER_ID, SESSION_GUEST_TAG, SESSION_START_TIME, SESSION_END_TIME, SESSION_ACTIVE) VALUES (?, ?, NULL, NOW(), ?, TRUE)";
                         try (PreparedStatement sessStmt = conn.prepareStatement(insertSession)) {
                             sessStmt.setInt(1, seatId);
                             sessStmt.setInt(2, userId);

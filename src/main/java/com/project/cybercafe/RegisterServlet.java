@@ -33,37 +33,25 @@ public class RegisterServlet extends HttpServlet {
         try (Connection conn = DatabaseConnection.getConnection()) {
 
             // 2. Check if the username already exists in MariaDB
-            String checkSql = "SELECT USER_ID FROM USERS WHERE USERNAME = ?";
+            String checkSql = "SELECT USER_ID FROM USERS WHERE USER_NAME = ?";
             try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
                 checkStmt.setString(1, usernameParam);
                 try (ResultSet rs = checkStmt.executeQuery()) {
                     if (rs.next()) {
-                        // User exists, stop deployment and kick back
                         response.sendRedirect("register.jsp?error=username_taken");
                         return;
                     }
                 }
             }
 
-            // INSIDE REGISTERSERVLET.JAVA - CHANGE STEP 3 TO THIS:
-            String insertSql = "INSERT INTO USERS (USERNAME, PASSWORD, BANKED_MINUTES, IS_ADMIN) VALUES (?, ?, ?, ?)";
+            // 3. Insert the new user straight up
+            String insertSql = "INSERT INTO USERS (USER_NAME, USER_PASSWORD, USER_MINUTES, USER_ADMIN) VALUES (?, ?, ?, ?)";
             try (PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
                 insertStmt.setString(1, usernameParam);
                 insertStmt.setString(2, passwordParam);
                 insertStmt.setInt(3, 0); // NEW USERS START RAW WITH ZERO MINUTES
                 insertStmt.setBoolean(4, false); // NEW USERS ARE NOT ADMINS
                 insertStmt.executeUpdate();
-            } catch (SQLException e) {
-                // If IS_ADMIN column doesn't exist, try without it (for backwards compatibility)
-                String insertSqlFallback = "INSERT INTO USERS (USERNAME, PASSWORD, BANKED_MINUTES) VALUES (?, ?, ?)";
-                try (PreparedStatement insertStmt = conn.prepareStatement(insertSqlFallback)) {
-                    insertStmt.setString(1, usernameParam);
-                    insertStmt.setString(2, passwordParam);
-                    insertStmt.setInt(3, 0);
-                    insertStmt.executeUpdate();
-                } catch (SQLException fallbackException) {
-                    throw fallbackException;
-                }
             }
 
             // Account created successfully! Send them straight to the login page

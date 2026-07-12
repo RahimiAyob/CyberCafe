@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -25,6 +26,7 @@ public class StartGuestSessionServlet extends HttpServlet {
         if (minutesParam != null && session.getAttribute("CURRENT_SEAT_ID") != null) {
             int minutes = Integer.parseInt(minutesParam);
             int seatId = (Integer) session.getAttribute("CURRENT_SEAT_ID");
+            double amount = calculatePrice(minutes);
 
             // 1. calculate expiration time
             long endTimeMillis = System.currentTimeMillis() + (minutes * 60L * 1000L);
@@ -34,12 +36,12 @@ public class StartGuestSessionServlet extends HttpServlet {
             try (Connection conn = DatabaseConnection.getConnection()) {
 
                 // CRITICAL GATEWAY CHECK: Block guest if seat is already occupied by someone else
-                String checkSeatSql = "SELECT STATUS FROM SEATS WHERE SEAT_ID = ?";
+                String checkSeatSql = "SELECT SEAT_STATUS FROM SEATS WHERE SEAT_ID = ?";
                 try (PreparedStatement checkSeatStmt = conn.prepareStatement(checkSeatSql)) {
                     checkSeatStmt.setInt(1, seatId);
                     try (ResultSet rsSeat = checkSeatStmt.executeQuery()) {
                         if (rsSeat.next()) {
-                            String currentStatus = rsSeat.getString("STATUS");
+                            String currentStatus = rsSeat.getString("SEAT_STATUS");
                             if ("OCCUPIED".equalsIgnoreCase(currentStatus)) {
                                 response.sendRedirect("scan_qr.jsp?error=seat_already_occupied");
                                 return;
@@ -49,19 +51,35 @@ public class StartGuestSessionServlet extends HttpServlet {
                 }
 
                 // update the physical seat status to occupied
-                String updateSeatSql = "UPDATE SEATS SET STATUS = 'OCCUPIED' WHERE SEAT_ID = ?";
+                String updateSeatSql = "UPDATE SEATS SET SEAT_STATUS = 'OCCUPIED' WHERE SEAT_ID = ?";
                 try (PreparedStatement seatStmt = conn.prepareStatement(updateSeatSql)) {
                     seatStmt.setInt(1, seatId);
                     seatStmt.executeUpdate();
                 }
 
                 // insert an active row into your tracking log table so the admin knows WHO is sitting there
-                String insertSessionSql = "INSERT INTO SESSIONS (SEAT_ID, USER_ID, GUEST_TAG, START_TIME, END_TIME, IS_ACTIVE) VALUES (?, NULL, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? MINUTE), TRUE)";
-                try (PreparedStatement sessStmt = conn.prepareStatement(insertSessionSql)) {
+                String insertSessionSql = "INSERT INTO SESSIONS (SESSION_SEAT_ID, SESSION_USER_ID, SESSION_GUEST_TAG, SESSION_START_TIME, SESSION_END_TIME, SESSION_ACTIVE) VALUES (?, NULL, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? MINUTE), TRUE)";
+                try (PreparedStatement sessStmt = conn.prepareStatement(insertSessionSql, Statement.RETURN_GENERATED_KEYS)) {
                     sessStmt.setInt(1, seatId);
                     sessStmt.setString(2, guestIdentifier);
                     sessStmt.setInt(3, minutes);
                     sessStmt.executeUpdate();
+
+                    Integer createdSessionId = null;
+                    try (ResultSet generatedKeys = sessStmt.getGeneratedKeys()) {
+                        if (generatedKeys.next()) {
+                            createdSessionId = generatedKeys.getInt(1);
+                        }
+                    }
+
+                    if (createdSessionId != null) {
+                        String transactionSql = "INSERT INTO TRANSACTIONS (TRANSACTION_USER_ID, TRANSACTION_SESSION_ID, TRANSACTION_AMOUNT) VALUES (NULL, ?, ?)";
+                        try (PreparedStatement tranStmt = conn.prepareStatement(transactionSql)) {
+                            tranStmt.setInt(1, createdSessionId);
+                            tranStmt.setDouble(2, amount);
+                            tranStmt.executeUpdate();
+                        }
+                    }
                 }
 
             } catch (SQLException e) {
@@ -80,5 +98,12 @@ public class StartGuestSessionServlet extends HttpServlet {
         }
 
         response.sendRedirect("scan_qr.jsp");
+    }
+
+    private double calculatePrice(int minutes) {
+        if (minutes == 30) return 2.00;
+        if (minutes == 60) return 4.00;
+        if (minutes == 120) return 8.00;
+        return (minutes / 30.0) * 2.00;
     }
 }

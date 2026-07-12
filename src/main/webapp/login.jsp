@@ -8,42 +8,6 @@
 <head>
     <title>CyberCafe - Login</title>
     <link rel="stylesheet" href="assets/css/theme.css">
-    <style>
-        .error-message {
-            background-color: rgba(231, 76, 60, 0.15);
-            border: 1px solid #e74c3c;
-            color: #e74c3c;
-            padding: 12px 16px;
-            border-radius: 4px;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        .error-message::before {
-            content: "🛑";
-            font-size: 1.1em;
-        }
-        .success-message {
-            background-color: rgba(46, 204, 113, 0.15);
-            border: 1px solid #2ecc71;
-            color: #2ecc71;
-            padding: 12px 16px;
-            border-radius: 4px;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        .success-message::before {
-            content: "✓";
-            font-size: 1.2em;
-        }
-    </style>
 </head>
 <body class="theme-body">
     <%
@@ -108,12 +72,12 @@
                         boolean isTableOccupied = false;
                         if (seatObj instanceof Integer) {
                             try (Connection conn = DatabaseConnection.getConnection()) {
-                                String query = "SELECT STATUS FROM SEATS WHERE SEAT_ID = ?";
+                                String query = "SELECT SEAT_STATUS FROM SEATS WHERE SEAT_ID = ?";
                                 try (PreparedStatement pstmt = conn.prepareStatement(query)) {
                                     pstmt.setInt(1, (Integer) seatObj);
                                     try (ResultSet rs = pstmt.executeQuery()) {
                                         if (rs.next()) {
-                                            isTableOccupied = "OCCUPIED".equalsIgnoreCase(rs.getString("STATUS"));
+                                            isTableOccupied = "OCCUPIED".equalsIgnoreCase(rs.getString("SEAT_STATUS"));
                                         }
                                     }
                                 }
